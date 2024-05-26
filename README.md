@@ -219,7 +219,7 @@ def estereo2mono(ficEste, ficMono, canal=2):
         buffer4 = fpwave.read(size)
         datos = st.unpack(formato,buffer4)
 
-        
+         
 
     #Salida
     with open(ficMono,'wb') as fout :
@@ -231,28 +231,26 @@ def estereo2mono(ficEste, ficMono, canal=2):
 
         if bitspersample==16 : formato = 'h'
         else : formato = 'b'
-        if canal  in [0,1] :
-           
-            for iter in range(nummuestras) :
-                muestra = datos[iter * 2 + canal]
-                fout.write(st.pack(formato,muestra))
-        else :
-            if canal == 2:
-                for iter in range(nummuestras ) :
-                    muestra = (datos[2* iter] + datos[iter * 2 + 1]) // 2
-                    fout.write(st.pack(formato,muestra))
-            else :
-                for iter in range(nummuestras ) :
-                    muestra = (datos[2* iter] - datos[iter * 2 + 1]) // 2
-                    fout.write(st.pack(formato,muestra))
+
+        if canal == 0:
+            datosout = datos[0::2]  #izq
+        elif canal == 1:
+            datosout = datos[1::2]  #der
+        elif canal == 2:
+            datosout = [(dataizq + datader) // 2 for dataizq, datader in zip(datos[0::2], datos[1::2])]
+        else:
+            datosout = [(dataizq - datader) // 2 for dataizq, datader in zip(datos[0::2], datos[1::2])]
+
+        for dato in datosout:
+            fout.write(st.pack(formato,dato))
 
 ```
 
 ##### Código de `mono2estereo()`
 ```python
-def mono2stereo(ficIzq, ficDer, ficEste) :
+def mono2estereo(ficIzq, ficDer, ficEste) :
     """
-    Lee  `ficIzq` y `ficDer`. Ambos contiene señales mono y construye  una señal estéreo en el fichero `ficEste`.
+    Lee  ficIzq y ficDer. Ambos contiene señales mono y construye  una señal estéreo en el fichero ficEste.
     """
 
     #Canal Izq
@@ -266,6 +264,8 @@ def mono2stereo(ficIzq, ficDer, ficEste) :
         cabecera2 = '<4sI2H2I2H'
         buffer2 = fin.read(st.calcsize(cabecera2))
         ChunkID2, ChunkSize2, format2, numchannels, samplerate, byterate, blockalign, bitspersample = st.unpack(cabecera2, buffer2)
+        if numchannels != 1:
+            raise Exception('El fichero no es mono')
 
         cabecera3 = '<4sI'
         buffer3 = fin.read(st.calcsize(cabecera3))
@@ -288,7 +288,9 @@ def mono2stereo(ficIzq, ficDer, ficEste) :
         cabecera2 = '<4sI2H2I2H'
         buffer2 = fin.read(st.calcsize(cabecera2))
         ChunkID2, ChunkSize2, format2, numchannels, samplerate, byterate, blockalign, bitspersample = st.unpack(cabecera2, buffer2)
-
+        if numchannels != 1:
+            raise Exception('El fichero no es mono')
+        
         cabecera3 = '<4sI'
         buffer3 = fin.read(st.calcsize(cabecera3))
         ChunkID3, ChunkSize3 = st.unpack(cabecera3, buffer3)
@@ -302,6 +304,10 @@ def mono2stereo(ficIzq, ficDer, ficEste) :
         cabecera_fmt = '<4sI4s4sIHHIIHH4sI'
         cabecera = (b'RIFF', 36 + nummuestras * 4, b'WAVE', b'fmt ', 16, 1, 2, 16000, 64000 , 4, 16, b'data', nummuestras * 4)
         fout.write(st.pack(cabecera_fmt, *cabecera))
+
+        for muestrasizq, muestrasder in zip(datosizq, datosder):
+            muestrasEstereo = st.pack('<hh' , muestrasizq, muestrasder) #<hh cada muestra son 16 bits
+            fout.write(muestrasEstereo)
 
 ```
 
@@ -406,6 +412,10 @@ def decEstereo(ficCod, ficEste) :
             cabecera_fmt = '<4sI4s4sIHHIIHH4sI'
             cabecera = (b'RIFF', 36 + nummuestras * 4, b'WAVE', b'fmt ', 16, 1, 2, 16000, 64000 , 4, 16, b'data', nummuestras * 4)
             fout.write(st.pack(cabecera_fmt, *cabecera))
+
+            for muestra_L, muestra_R in zip(datosizq,datosder) :         
+                muestracodi =   muestra_L << 16 | muestra_R 
+                fout.write(st.pack('<i',muestracodi))
 
 
 ```
