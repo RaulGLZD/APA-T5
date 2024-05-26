@@ -202,6 +202,9 @@ def estereo2mono(ficEste, ficMono, canal=2):
         buffer2 = fpwave.read(st.calcsize(cabecera2))
         (ChunkID2, ChunkSize2, format2, numchannels, samplerate, byterate, blockalign, bitspersample)   = st.unpack(cabecera2,buffer2)
 
+        if numchannels != 2 :
+             raise Exception('Fichero no estereo') from None
+        
         if canal not in [0,1,2,3]:
              raise Exception('Canal no válido') from None
 
@@ -216,14 +219,7 @@ def estereo2mono(ficEste, ficMono, canal=2):
         buffer4 = fpwave.read(size)
         datos = st.unpack(formato,buffer4)
 
-        if canal == 0:
-            datos = datos[::2]  #izq
-        elif canal == 1:
-            datos = datos[1::2]  #der
-        elif canal == 2:
-            datos = [(dataizq + datader) // 2 for dataizq, datader in zip(datos[::2], datos[1::2])]
-        else:
-            datos = [(dataizq - datader) // 2 for dataizq, datader in zip(datos[::2], datos[1::2])] 
+        
 
     #Salida
     with open(ficMono,'wb') as fout :
@@ -232,6 +228,23 @@ def estereo2mono(ficEste, ficMono, canal=2):
         cabecera = (b'RIFF', 36 + nummuestras * blockalign, b'WAVE', b'fmt ', 16, 1, 1, samplerate, byterate // numchannels , blockalign // numchannels, bitspersample, b'data', nummuestras * 2)
         pack1 =  st.pack(cabecera_fmt, *cabecera)
         fout.write(pack1)
+
+        if bitspersample==16 : formato = 'h'
+        else : formato = 'b'
+        if canal  in [0,1] :
+           
+            for iter in range(nummuestras) :
+                muestra = datos[iter * 2 + canal]
+                fout.write(st.pack(formato,muestra))
+        else :
+            if canal == 2:
+                for iter in range(nummuestras ) :
+                    muestra = (datos[2* iter] + datos[iter * 2 + 1]) // 2
+                    fout.write(st.pack(formato,muestra))
+            else :
+                for iter in range(nummuestras ) :
+                    muestra = (datos[2* iter] - datos[iter * 2 + 1]) // 2
+                    fout.write(st.pack(formato,muestra))
 
 ```
 
